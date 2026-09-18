@@ -182,3 +182,11 @@ npm run build
 ## Границы задания
 
 Регистрация, восстановление пароля, администрирование пользователей и отписка не добавлялись. Исходников заявленного Yii2-бэкенда не было, поэтому API создан заново по предоставленной спецификации. Обязательная часть — каталог, CRUD и отчёт; подписка, очередь и SMS Pilot относятся к бонусной части и выводят общий объём за исходный лимит в 8 часов.
+
+## Скриншоты
+<img width="3840" height="3642" alt="FireShot Capture 020 - Книжная полка - localhost" src="https://github.com/user-attachments/assets/71626e63-191c-4638-bd7f-6e9ed20360eb" />
+<img width="3840" height="2135" alt="FireShot Capture 021 - Книжная полка - localhost" src="https://github.com/user-attachments/assets/ada5f0ee-a3b8-4d80-980e-1adf4335fd9a" />
+<img width="3840" height="3276" alt="FireShot Capture 022 - Книжная полка - localhost" src="https://github.com/user-attachments/assets/8338ccfa-346e-4989-92a5-0515fef90faf" />
+<img width="3840" height="2201" alt="FireShot Capture 023 - Книжная полка - localhost" src="https://github.com/user-attachments/assets/5ae25f70-cf7e-4464-8c74-f22f407af6e1" />
+<img width="3840" height="3189" alt="FireShot Capture 024 - Книжная полка - localhost" src="https://github.com/user-attachments/assets/dad7efb9-2624-470b-8567-f2e489a09df8" />
+<img width="3840" height="3159" alt="FireShot Capture 025 - Книжная полка - localhost" src="https://github.com/user-attachments/assets/ce340d1e-7f08-40bb-9d6d-2c076d4340e7" />
