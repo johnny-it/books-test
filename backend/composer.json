@@ -1,0 +1,27 @@
+{
+  "name": "infotek/book-catalog-api",
+  "description": "Yii2 REST API for the book catalog test assignment",
+  "license": "proprietary",
+  "type": "project",
+  "require": {
+    "php": ">=8.2",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "yiisoft/yii2": "^2.0.51",
+    "yiisoft/yii2-httpclient": "^2.0",
+    "firebase/php-jwt": "^7.1"
+  },
+  "repositories": [
+    {
+      "type": "composer",
+      "url": "https://asset-packagist.org"
+    }
+  ],
+  "config": {
+    "allow-plugins": {
+      "yiisoft/yii2-composer": true
+    },
+    "sort-packages": true
+  }
+}

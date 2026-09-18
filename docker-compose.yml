@@ -1,0 +1,66 @@
+services:
+  db:
+    image: mysql:8.4
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-books}
+      MYSQL_USER: ${MYSQL_USER:-books}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-books}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+  api:
+    build: ./backend
+    environment: &backend-environment
+      DB_DSN: mysql:host=db;dbname=${MYSQL_DATABASE:-books}
+      DB_USER: ${MYSQL_USER:-books}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-books}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-this-64-character-secret-before-production-12345678}
+      JWT_TTL: ${JWT_TTL:-3600}
+      REFRESH_TOKEN_TTL: ${REFRESH_TOKEN_TTL:-604800}
+      REFRESH_COOKIE_NAME: ${REFRESH_COOKIE_NAME:-book_catalog_refresh}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:8080/api/v1}
+      SMSPILOT_API_KEY: ${SMSPILOT_API_KEY:-}
+      SMSPILOT_SENDER: ${SMSPILOT_SENDER:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+    ports:
+      - "8080:80"
+    volumes:
+      - covers:/var/www/html/web/uploads/covers
+
+  worker:
+    build: ./backend
+    command: ["php", "yii", "sms/run"]
+    environment: *backend-environment
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
+    volumes:
+      - covers:/var/www/html/web/uploads/covers
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${API_PUBLIC_URL:-http://localhost:8080/api/v1}
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  mysql-data:
+  covers:

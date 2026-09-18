@@ -1,0 +1,398 @@
+openapi: 3.0.3
+info:
+  title: API каталога книг
+  version: 1.1.0
+  description: REST API каталога книг, авторов, подписок и отчётов.
+  license:
+    name: Proprietary
+    url: https://choosealicense.com/no-permission/
+servers:
+  - url: /api/v1
+security: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Проверка доступности API
+      responses:
+        '200': { description: API доступен }
+        '429': { description: Слишком много запросов }
+        '503': { description: API временно недоступен }
+  /auth/login:
+    post:
+      operationId: login
+      summary: Авторизация пользователя
+      description: Устанавливает HttpOnly cookie `book_catalog_refresh` и возвращает короткоживущий access JWT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Access JWT и пользователь; ответ устанавливает refresh cookie и требует поддержки credentials клиентом
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh cookie `book_catalog_refresh` с путём `/api/v1/auth`
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/refresh:
+    post:
+      operationId: refreshSession
+      summary: Обновить access JWT и refresh-сессию
+      description: Принимает `book_catalog_refresh` только из cookie, ротирует refresh token и устанавливает новую HttpOnly cookie. Запрос отправляется с credentials и точным Origin, совпадающим с `FRONTEND_ORIGIN`.
+      security: [{ refreshCookie: [] }]
+      responses:
+        '200':
+          description: Новый access JWT и пользователь; refresh cookie заменена
+          headers:
+            Set-Cookie:
+              description: Новая HttpOnly refresh cookie `book_catalog_refresh` с прежним абсолютным сроком сессии
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Завершить refresh-сессию
+      description: Отзывает текущую refresh-сессию и всегда удаляет cookie. Идемпотентный запрос отправляется с credentials и точным Origin, совпадающим с `FRONTEND_ORIGIN`.
+      security: [{ refreshCookie: [] }]
+      responses:
+        '200':
+          description: Сессия завершена; refresh cookie удалена
+          headers:
+            Set-Cookie:
+              description: Удаляет HttpOnly cookie `book_catalog_refresh` с пути `/api/v1/auth`
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { type: object, nullable: true, example: null }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /books:
+    get:
+      operationId: listBooks
+      summary: Список книг
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1, minimum: 1 } }
+        - { name: per-page, in: query, schema: { type: integer, default: 12, minimum: 1, maximum: 100 } }
+        - { name: author_id, in: query, schema: { type: integer } }
+        - { name: year, in: query, schema: { type: integer } }
+        - { name: search, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Книги с пагинацией
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    post:
+      operationId: createBook
+      summary: Создать книгу
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/BookCreateForm' }
+      responses:
+        '201':
+          description: Книга создана
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /books/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: getBook
+      summary: Получить книгу
+      responses:
+        '200':
+          description: Книга
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateBook
+      summary: Обновить книгу
+      description: Обложка необязательна; без нового файла сохраняется текущая.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/BookUpdateForm' }
+      responses:
+        '200':
+          description: Книга обновлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    patch:
+      operationId: patchBook
+      summary: Частично обновить книгу
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookInput' }
+      responses:
+        '200':
+          description: Книга обновлена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: deleteBook
+      summary: Удалить книгу
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Книга удалена }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /authors:
+    get:
+      operationId: listAuthors
+      summary: Список авторов
+      parameters:
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: per-page, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+        - { name: search, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Авторы с пагинацией
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorListResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    post:
+      operationId: createAuthor
+      summary: Создать автора
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthorInput' }
+      responses:
+        '201':
+          description: Автор создан
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /authors/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer } }
+    get:
+      operationId: getAuthor
+      summary: Автор и его книги
+      responses:
+        '200':
+          description: Автор
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      operationId: updateAuthor
+      summary: Обновить автора
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AuthorInput' }
+      responses:
+        '200':
+          description: Автор обновлён
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthorResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: deleteAuthor
+      summary: Удалить автора
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204': { description: Автор удалён }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: У автора есть книги }
+  /authors/{id}/subscriptions:
+    post:
+      operationId: subscribeToAuthor
+      summary: Подписать телефон на новые книги автора
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone]
+              properties:
+                phone: { type: string, example: '+7 999 123-45-67' }
+      responses:
+        '201': { description: Подписка создана }
+        '200': { description: Телефон уже подписан }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /reports/top-authors:
+    get:
+      operationId: getTopAuthors
+      summary: TOP-10 авторов по количеству книг за год
+      parameters:
+        - { name: year, in: query, required: true, schema: { type: integer } }
+      responses:
+        '200':
+          description: Рейтинг
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TopAuthorsResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: book_catalog_refresh
+      description: Ротируемый refresh token в HttpOnly cookie; браузер отправляет его только для `/api/v1/auth`.
+  responses:
+    Unauthorized:
+      description: Требуется действительный access JWT или refresh token
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Origin запроса не совпадает с разрешённым `FRONTEND_ORIGIN`
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: Объект не найден
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    ValidationError:
+      description: Ошибка валидации
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            token: { type: string }
+            expires_at: { type: string, format: date-time }
+            user: { type: object, properties: { id: { type: integer }, username: { type: string }, role: { type: string } } }
+    AuthorShort:
+      type: object
+      properties: { id: { type: integer }, full_name: { type: string } }
+    BookShort:
+      type: object
+      properties: { id: { type: integer }, title: { type: string }, year: { type: integer } }
+    Book:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        year: { type: integer }
+        description: { type: string, nullable: true }
+        isbn: { type: string, nullable: true }
+        cover_url: { type: string, format: uri, nullable: true }
+        authors: { type: array, items: { $ref: '#/components/schemas/AuthorShort' } }
+    Author:
+      allOf:
+        - { $ref: '#/components/schemas/AuthorShort' }
+        - type: object
+          properties: { books: { type: array, items: { $ref: '#/components/schemas/BookShort' } } }
+    BookInput:
+      type: object
+      properties:
+        title: { type: string, maxLength: 255 }
+        year: { type: integer, minimum: 1000, maximum: 2100 }
+        description: { type: string, maxLength: 5000 }
+        isbn: { type: string, maxLength: 20 }
+        author_ids: { type: array, minItems: 1, items: { type: integer } }
+    BookCreateForm:
+      allOf:
+        - { $ref: '#/components/schemas/BookInput' }
+        - type: object
+          required: [title, year, author_ids, cover]
+          properties: { cover: { type: string, format: binary } }
+    BookUpdateForm:
+      allOf:
+        - { $ref: '#/components/schemas/BookInput' }
+        - type: object
+          required: [title, year, author_ids]
+          properties: { cover: { type: string, format: binary } }
+    AuthorInput:
+      type: object
+      required: [full_name]
+      properties: { full_name: { type: string, minLength: 2, maxLength: 160 } }
+    Pagination:
+      type: object
+      properties: { total: { type: integer }, page: { type: integer }, per_page: { type: integer }, total_pages: { type: integer } }
+    BookResponse:
+      type: object
+      properties: { success: { type: boolean }, data: { $ref: '#/components/schemas/Book' } }
+    AuthorResponse:
+      type: object
+      properties: { success: { type: boolean }, data: { $ref: '#/components/schemas/Author' } }
+    BookListResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Book' } }, pagination: { $ref: '#/components/schemas/Pagination' } } }
+    AuthorListResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/AuthorShort' } }, pagination: { $ref: '#/components/schemas/Pagination' } } }
+    TopAuthorsResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            year: { type: integer }
+            items:
+              type: array
+              items: { type: object, properties: { rank: { type: integer }, author_id: { type: integer }, full_name: { type: string }, books_count: { type: integer } } }
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        errors:
+          type: array
+          items: { type: object, properties: { field: { type: string, nullable: true }, message: { type: string } } }

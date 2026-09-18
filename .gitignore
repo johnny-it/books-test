@@ -1,0 +1,26 @@
+.env
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Backend
+backend/vendor/
+backend/runtime/*
+!backend/runtime/.gitkeep
+backend/web/assets/*
+!backend/web/assets/.gitkeep
+backend/web/uploads/covers/*
+!backend/web/uploads/covers/.gitkeep
+
+# Docker volumes and local artifacts
+docker/mysql-data/
+tmp/
+coverage/
+*.log
+.worktrees/
